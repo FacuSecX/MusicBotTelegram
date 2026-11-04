@@ -82,3 +82,9 @@ Una vez terminado, entrá al chat del bot y escribí `/menu` o directamente el n
 | `/help` | Muestra la ayuda. |
 
 #
+
+## 🤝 Autor
+
+**Creado por** [FacuSecX](https://github.com/FacuSecX/) 
+
+ Si el proyecto te resulta útil, agradecemos que nos dejes tu estrellita en el repo ⭐❤️
