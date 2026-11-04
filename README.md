@@ -53,7 +53,7 @@ sudo apt install -y git
 git clone https://github.com/FacuSecX/MusicBotTelegram.git
 cd MusicBotTelegram
 
-sudo bash instalarbotmusica.sh
+sudo bash bot-install.sh
 ```
 
 Durante la instalación te pedirá el nombre del servicio, el Token y el ChatID. También permite configurar una salida de red mediante WARP para las consultas de audio a YouTube.
