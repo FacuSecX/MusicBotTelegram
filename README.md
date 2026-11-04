@@ -1,2 +1,79 @@
-# MusicBotTelegram
-music bot for Telegram
+<h1 align="center">Telegram Music Bot</h1>
+
+<p align="center">
+<img alt="Telegram Music Bo" src="http://imgfz.com/i/gQdONA3.png" title="Telegram Music Bot">
+</p>
+<br>
+
+Hola, ¿estás cansado de ser un pobre diablo y no tener un mango? Bueno, yo también. 
+
+Con este simple bot pueden reproducir la música en segundo plano y con el teléfono bloqueado. También permite crear o armar playlists y reproducirlas sin límites. Así que, si te querés ahorrar unos buenos mangos en suscripciones como Spotify, YouTube o cualquiera de esos servicios basura, acá tenés una opción rápida y fácil.
+
+<br>
+
+<p align="center">
+<img alt="Telegram Music Bo" src="http://imgfz.com/i/NbyX5o7.png" title="Telegram Music Bo">
+</p>
+<br>
+
+
+## Cómo funciona
+
+El bot busca las canciones directamente en YouTube y te envía el audio para escucharlo desde el reproductor integrado de Telegram.
+
+1. Buscá una canción desde el menú, escribiendo el artista y el título en el chat o usando `/buscar artista canción`.
+2. El bot te muestra hasta seis resultados.
+3. Tocá el que quieras: la descarga y el envío comienzan directamente, sin confirmaciones adicionales.
+4. Cuando llegue el audio, tocá **Play** y listo: podés seguir escuchando mientras usás otras aplicaciones o tenés el teléfono bloqueado.
+
+También podés guardar canciones en favoritos, crear playlists y añadir o quitar temas desde los botones del bot.
+
+Como las búsquedas se realizan en YouTube, no dependés de un catálogo propio del bot. La disponibilidad de cada canción depende de las restricciones del video original.
+
+Aunque está pensado para música, también permite obtener el audio de otros videos públicos. En ese caso, recibís el audio, no el video completo.
+
+## Instalación y uso
+
+El instalador está preparado para un **VPS con Debian 12 o Debian 13**. Configura las dependencias y deja el bot funcionando como un servicio que se inicia automáticamente con el servidor.
+
+Necesitás:
+
+- Un VPS con Debian 12/13 y acceso como administrador.
+- Un bot creado desde **@BotFather** y su Token.
+- El **ChatID** de tu chat privado con el bot.
+
+Antes de instalarlo, abrí tu bot en Telegram y tocá **Iniciar** para que pueda enviarte mensajes.
+
+Descargá el proyecto y ejecutá el instalador:
+
+```bash
+sudo apt update
+sudo apt install -y git
+
+git clone https://github.com/FacuSecX/MusicBotTelegram.git
+cd MusicBotTelegram
+
+sudo bash instalarbotmusica.sh
+```
+
+Durante la instalación te pedirá el nombre del servicio, el Token y el ChatID. También permite configurar una salida de red mediante WARP para las consultas de audio a YouTube.
+
+El instalador verifica los datos del bot. Si son incorrectos, vuelve a pedirlos sin descartar lo que ya instaló. Las credenciales se guardan en un archivo `.env` separado del código.
+
+Una vez terminado, entrá al chat del bot y escribí `/menu` o directamente el nombre de una canción. No hace falta mantener tu PC encendida: el bot funciona desde el VPS.
+
+### Comandos principales
+
+| Comando | Función |
+|---|---|
+| `/menu` | Muestra el menú principal. |
+| `/ocultarmenu` | Oculta el menú. |
+| `/buscar artista canción` | Busca canciones en YouTube. También podés escribir la búsqueda directamente en el chat. |
+| `/crearplaylist Nombre` | Crea una playlist. |
+| `/playlists` | Muestra tus playlists. |
+| `/favorites` | Muestra tus favoritos. |
+| `/detener` | Cierra la playlist desde el bot y limpia sus mensajes del chat. |
+| `/limpiarchat` | Retira mensajes recientes y conserva tus favoritos y playlists. También acepta `/limpiar` y `/clearchat`. |
+| `/help` | Muestra la ayuda. |
+
+#
