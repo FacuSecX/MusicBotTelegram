@@ -106,6 +106,9 @@ class Service:
         if scope:
             rows.append([Button('⏮ Anterior', callback_data=f'next:{scope}:{max(0,index-1)}'),
                          Button('Siguiente ⏭', callback_data=f'next:{scope}:{index+1}')])
+        else:
+            rows.append([Button('‹ Atrás', callback_data='results'),
+                         Button('🏠 Menú principal', callback_data='menu', style='primary')])
         return Markup(rows)
 
     async def retire_previous_audio(self, bot, chat, uid, message):
@@ -372,7 +375,8 @@ async def search_results(update, context):
         duration = f'{track.duration//60}:{track.duration%60:02}' if track.duration else 'duración no disponible'
         lines.append(f'{i}. {track.title[:140]}\n{track.artist[:90]} · {duration}')
         rows.append([Button(f'{i}. {track.title[:52]}', callback_data='pick:'+track.id)])
-    rows.append([Button('‹ Atrás', callback_data='searchprompt')])
+    rows.append([Button('‹ Atrás', callback_data='searchprompt'),
+                 Button('🏠 Menú principal', callback_data='menu', style='primary')])
     await render(update, context, 'Elegí una canción:\n\n'+'\n\n'.join(lines), Markup(rows))
 
 
@@ -431,6 +435,13 @@ async def callback(update, context):
                     await render(update, context, q.message.text, Markup(rows))
                 else:
                     await q.edit_message_reply_markup(reply_markup=Markup(rows))
+                    panel = s.panels.get(uid, update.effective_chat.id)
+                    if (panel and panel.get('media_type') == 'audio'
+                            and panel['message_id'] == getattr(q.message, 'message_id', None)):
+                        caption = getattr(q.message, 'caption', None)
+                        s.panels._remember(uid, update.effective_chat.id,
+                                           caption if isinstance(caption, str) else panel.get('last_text') or '',
+                                           Markup(rows))
             else:
                 await render(update, context, '⭐ Guardada en favoritos.' if state else 'Quitada de favoritos.')
         elif action == 'clean':
@@ -524,12 +535,11 @@ async def callback(update, context):
                         else:
                             await s.panels.to_bottom(update,context)
                     else:
-                        await s.send_track(context.bot, update.effective_chat.id, uid, tid)
-                        track = s.store.get_track(tid)
+                        message = await s.send_track(context.bot, update.effective_chat.id, uid, tid)
                         if s.panels.revision(uid, update.effective_chat.id) != view:
-                            await s.panels.to_bottom(update,context)
+                            await s.panels.attach_audio(update, context, message, preserve_view=True)
                             return
-                        await render(update, context, f'🎵 {track["title"]}\n\nAudio listo. Podés escucharlo en el reproductor de Telegram.', Markup([list(row) for row in s.audio_buttons(uid, tid).inline_keyboard] + [[Button('‹ Atrás', callback_data='results')]]))
+                        await s.panels.attach_audio(update, context, message)
             except ProviderError as exc:
                 LOG.warning('audio_failed kind=%s', exc.kind)
                 if s.panels.revision(uid, update.effective_chat.id) != view:
@@ -621,9 +631,14 @@ async def clean_chat(update, context):
     try:
         await render(update,context,'🧹 Retirando mensajes del chat…')
         panel=s.panels.get(uid,chat)
-        keep=[panel['message_id']] if panel and panel['message_id'] else []
+        audio_panel = bool(panel and panel.get('media_type') == 'audio')
+        keep=[panel['message_id']] if panel and panel['message_id'] and not audio_panel else []
         result=await s.history.clear_chat(context.bot,uid,chat,keep_ids=keep)
         s.sessions.invalidate_messages(uid,chat,result['deleted_ids'])
+        if audio_panel:
+            if panel['message_id'] not in result['deleted_ids'] and (result['failed'] or result['too_old']):
+                await s.panels.hide(context.bot, uid, chat)
+            s.panels.detach_audio(uid, chat)
         s.panels.set_data(uid,chat,active_native_session=None)
         context.user_data.pop('awaiting_playlist',None)
         notice=None
