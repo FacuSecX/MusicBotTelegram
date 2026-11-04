@@ -5,6 +5,11 @@
 </p>
 <br>
 
+<p align="center">
+<a href="https://github.com/FacuSecX"><img title="Autor" src="https://img.shields.io/badge/Author-FacuSecX%20-blue?style=for-the-badge&logo=github"></a>
+<a href=""><img title="Version" src="https://img.shields.io/badge/Version-1.0-red?style=for-the-badge&logo="></a>
+</p>
+
 Hola, ¿estás cansado de ser un pobre diablo y no tener un mango? Bueno, yo también. 
 
 Con este simple bot pueden reproducir la música en segundo plano y con el teléfono bloqueado. También permite crear o armar playlists y reproducirlas sin límites. Así que, si te querés ahorrar unos buenos mangos en suscripciones como Spotify, YouTube o cualquiera de esos servicios basura, acá tenés una opción rápida y fácil.
@@ -53,7 +58,7 @@ sudo apt install -y git
 git clone https://github.com/FacuSecX/MusicBotTelegram.git
 cd MusicBotTelegram
 
-sudo bash instalarbotmusica.sh
+sudo bash bot-install.sh
 ```
 
 Durante la instalación te pedirá el nombre del servicio, el Token y el ChatID. También permite configurar una salida de red mediante WARP para las consultas de audio a YouTube.
@@ -77,3 +82,9 @@ Una vez terminado, entrá al chat del bot y escribí `/menu` o directamente el n
 | `/help` | Muestra la ayuda. |
 
 #
+
+## 🤝 Autor
+
+**Creado por** [FacuSecX](https://github.com/FacuSecX/) 
+
+ Si el proyecto te resulta útil, agradecemos que nos dejes tu estrellita en el repo ⭐❤️
