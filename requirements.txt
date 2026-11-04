@@ -1,0 +1,10 @@
+# ==========================================
+# Telegram Bot Music
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
+
+python-telegram-bot==22.8
+python-dotenv==1.2.4
+yt-dlp[default]==2026.10.26
+nodejs-wheel==24.19.0
