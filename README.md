@@ -6,7 +6,7 @@
 <br>
 
 <p align="center">
-<a href="https://github.com/FacuSecX"><img title="Autor" src="https://img.shields.io/badge/Author-Facu%20-blue?style=for-the-badge&logo=github"></a>
+<a href="https://github.com/FacuSecX"><img title="Autor" src="https://img.shields.io/badge/Author-FacuSecX%20-blue?style=for-the-badge&logo=github"></a>
 <a href=""><img title="Version" src="https://img.shields.io/badge/Version-1.0-red?style=for-the-badge&logo="></a>
 </p>
 
