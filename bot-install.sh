@@ -9,6 +9,7 @@
 # Uso: sudo bash instalarbotmusica.sh
 # Repositorio previsto: https://github.com/FacuSecX/MusicBotTelegram.git
 set -Eeuo pipefail
+set +x
 umask 077
 export DEBIAN_FRONTEND=noninteractive
 export LC_ALL=C
@@ -33,8 +34,10 @@ if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
   cat <<'HELP'
 Uso: sudo bash instalarbotmusica.sh
 Instala MusicBotTelegram en Debian 12/13. Solicita servicio, WARP opcional,
-Token y ChatID; los datos rechazados se piden de nuevo sin descartar la instalación.
+Token, ChatID y una cuenta MEGA opcional para exportar playlists y favoritos.
+Los datos rechazados se piden de nuevo sin descartar la instalación.
 El Token se guarda solo en .env con permisos 600 y no se imprime.
+La cuenta MEGA se guarda también en .env con permisos 600, nunca en los backups.
 
 Opciones de administración/prueba explícitas:
   MUSICBOT_REPOSITORY   URL Git; predeterminada github.com/FacuSecX/MusicBotTelegram.git
@@ -133,7 +136,7 @@ printf 'Obteniendo el código del repositorio…\n'
 if ! GIT_TERMINAL_PROMPT=0 git clone --quiet -- "$repository" "$staging/source"; then
   fail 'No se pudo clonar el repositorio. Verificá que exista y sea accesible; luego volvé a ejecutar el instalador. No se modificó ningún servicio.'
 fi
-for required in requirements.txt musicbot/bot.py deploy/installer_support.py deploy/install-warp-proxy.sh; do
+for required in requirements.txt musicbot/bot.py deploy/installer_support.py deploy/install-warp-proxy.sh deploy/install-megacmd.sh deploy/mega_setup.py; do
   [[ -f "$staging/source/$required" ]] || fail 'El repositorio no tiene la estructura requerida de MusicBotTelegram.'
 done
 [[ ! -e "$staging/source/.env" ]] || fail 'El repositorio contiene un archivo .env privado; retiralo antes de instalar.'
@@ -215,6 +218,64 @@ unset bot_token chat_id REPLY
 chown "$service_user:$service_user" "$install_dir/.env"
 chmod 0600 "$install_dir/.env"
 
+step='cliente de backups MEGA'
+bash "$install_dir/deploy/install-megacmd.sh"
+mega_home="$install_dir/data/mega-home"
+install -d -o "$service_user" -g "$service_user" -m 0700 -- "$mega_home"
+prompt '¿Configurar MEGA para exportar backups? [S/n]: '
+if [[ "${REPLY,,}" != n && "${REPLY,,}" != no ]]; then
+  step='verificación privada de MEGA'
+  mega_setup_private() {
+    if [[ -n "$mega_code" ]]; then
+      printf '%s\0%s\0%s\0' "$mega_email" "$mega_password" "$mega_code"
+    else
+      printf '%s\0%s\0' "$mega_email" "$mega_password"
+    fi | runuser -u "$service_user" -- "$install_dir/.venv/bin/python" "$install_dir/deploy/mega_setup.py" setup --home "$mega_home"
+  }
+  while true; do
+    prompt 'Correo de MEGA: '
+    mega_email="$REPLY"
+    prompt 'Contraseña de MEGA (oculta): ' 1
+    mega_password="$REPLY"
+    mega_code=''
+    mega_ok=0
+    while true; do
+      if mega_result="$(mega_setup_private)"; then
+        mega_ok=1
+        break
+      else
+        mega_status=$?
+      fi
+      if [[ "$mega_status" == 11 ]]; then
+        while true; do
+          prompt 'Código de doble factor de MEGA (vacío para cambiar cuenta): ' 1
+          mega_code="$REPLY"
+          [[ -n "$mega_code" ]] || break 2
+          [[ "$mega_code" =~ ^[0-9]{6}$ ]] && break
+          printf 'El código debe tener seis números.\n'
+        done
+      elif [[ "$mega_status" == 12 ]]; then
+        prompt 'Conexión MEGA no disponible. Enter reintenta; C permite cambiar los datos: '
+        [[ "${REPLY,,}" != c ]] || break
+      else
+        break
+      fi
+    done
+    [[ "$mega_ok" == 1 ]] && break
+    unset mega_password mega_code mega_email REPLY
+    printf 'MEGA no confirmó la cuenta. La instalación se conserva; volvé a introducir los datos.\n'
+  done
+  mega_remote_dir="$(printf '%s' "$mega_result" | "$install_dir/.venv/bin/python" -c 'import json,sys; data=json.load(sys.stdin); assert data.get("ok") is True; print(data["remote_dir"])')"
+  printf '%s\0%s\0' "$mega_email" "$mega_password" | "$install_dir/.venv/bin/python" "$support" write-mega --destination "$install_dir/.env" \
+    --mega-home data/mega-home --mega-remote-dir "$mega_remote_dir"
+  chown "$service_user:$service_user" "$install_dir/.env"
+  chmod 0600 "$install_dir/.env"
+  unset mega_result mega_remote_dir mega_ok mega_status mega_password mega_code mega_email REPLY
+else
+  printf 'Se conserva cualquier sesión previa. Sin sesión, los enlaces públicos de importación siguen disponibles.\n'
+fi
+unset mega_home REPLY
+
 step='servicio systemd'
 warp_unit=''
 warp_pre=''
@@ -253,7 +314,8 @@ ProtectHome=read-only
 ReadWritePaths=$install_dir/data
 MemoryMax=768M
 CPUQuota=80%
-TasksMax=64
+# MEGAcmd keeps SDK worker threads in addition to Python/Node/FFmpeg.
+TasksMax=128
 
 [Install]
 WantedBy=multi-user.target

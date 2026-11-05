@@ -37,10 +37,10 @@ def api_root(value: str, allow_test: bool = False) -> str:
     raise ValueError('El destino de validación no es el servidor oficial o un servidor local de prueba autorizado.')
 
 
-def read_pair(stream=None) -> tuple[str, str]:
-    raw = (stream or sys.stdin.buffer).read(1024)
+def read_pair(stream=None, *, max_bytes=1024) -> tuple[str, str]:
+    raw = (stream or sys.stdin.buffer).read(max_bytes)
     fields = raw.split(b'\0')
-    if len(fields) != 3 or fields[-1] or len(raw) >= 1024:
+    if len(fields) != 3 or fields[-1] or len(raw) >= max_bytes:
         raise ValueError('La entrada privada no es válida.')
     return fields[0].decode('utf-8'), fields[1].decode('utf-8')
 
@@ -102,7 +102,7 @@ def write_environment(path: Path, token: str, chat_id: str, proxy='', test_base=
         raise ValueError('No se escribe una configuración con datos inválidos.')
     # Import only after the venv dependencies have been installed.
     from dotenv import dotenv_values
-    previous = dotenv_values(path) if path.is_file() else {}
+    previous = dotenv_values(path, interpolate=False) if path.is_file() else {}
     values = {key: value for key, value in previous.items() if value is not None and re.fullmatch(r'[A-Z][A-Z0-9_]*', key)}
     values.update(BOT_TOKEN=token, ALLOWED_USER_IDS=chat_id, DATA_DIR='data')
     values.setdefault('MAX_DURATION', '1200')
@@ -112,6 +112,8 @@ def write_environment(path: Path, token: str, chat_id: str, proxy='', test_base=
     values.setdefault('AUDIO_CACHE_MB', '512')
     values.setdefault('AUDIO_CACHE_DAYS', '7')
     values.setdefault('AUDIO_FORMAT', 'm4a')
+    values.setdefault('MEGA_HOME', 'data/mega-home')
+    values.setdefault('MEGA_ENABLED', '0')
     if proxy:
         if proxy != 'socks5h://127.0.0.1:40000':
             raise ValueError('El proxy del instalador no es el endpoint local esperado.')
@@ -128,6 +130,30 @@ def write_environment(path: Path, token: str, chat_id: str, proxy='', test_base=
     else:
         for key in ('MUSICBOT_INSTALL_TEST_MODE', 'BOT_API_BASE_URL', 'BOT_API_FILE_BASE_URL'):
             values.pop(key, None)
+    _write_private_environment(path, values)
+
+
+def write_mega_configuration(path: Path, home: str, remote_dir: str, email: str, password: str):
+    """Persist MEGA credentials only in the owner's private .env file."""
+    if home != 'data/mega-home' or not re.fullmatch(r'/MusicBotBackups-[A-Za-z0-9_-]{8,100}', remote_dir):
+        raise ValueError('La configuración de MEGA no pertenece al directorio privado del bot.')
+    if (not isinstance(email, str) or len(email) > 254
+            or not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', email)
+            or not isinstance(password, str) or not 1 <= len(password) <= 1024
+            or any(character in email + password for character in ('\r', '\n', '\0'))):
+        raise ValueError('Las credenciales de MEGA no tienen un formato válido.')
+    if path.is_symlink() or not path.is_file():
+        raise ValueError('Primero debe existir la configuración privada del bot.')
+    from dotenv import dotenv_values
+    previous = dotenv_values(path, interpolate=False)
+    values = {key: value for key, value in previous.items()
+              if value is not None and re.fullmatch(r'[A-Z][A-Z0-9_]*', key)}
+    values.update(MEGA_HOME=home, MEGA_ENABLED='1', MEGA_REMOTE_DIR=remote_dir,
+                  MEGA_EMAIL=email, MEGA_PASSWORD=password)
+    _write_private_environment(path, values)
+
+
+def _write_private_environment(path: Path, values: dict):
     def quote(value):
         return "'" + str(value).replace('\\', '\\\\').replace("'", "\\'").replace('\n', '\\n').replace('\r', '\\r') + "'"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -147,11 +173,13 @@ def write_environment(path: Path, token: str, chat_id: str, proxy='', test_base=
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=('validate', 'write-env', 'check-api', 'check-warp'))
+    parser.add_argument('action', choices=('validate', 'write-env', 'write-mega', 'check-api', 'check-warp'))
     parser.add_argument('--api-root', default='https://api.telegram.org')
     parser.add_argument('--allow-test-api', action='store_true')
     parser.add_argument('--destination', type=Path)
     parser.add_argument('--proxy', default='')
+    parser.add_argument('--mega-home', default='data/mega-home')
+    parser.add_argument('--mega-remote-dir', default='')
     args = parser.parse_args()
     try:
         if args.action == 'check-api':
@@ -173,6 +201,13 @@ def main():
                     time.sleep(1);ok,status=command('status')
                     if ok and re.search(r'Status update:\s+Connected(?:\s|$)',status):break
                 else:raise ValueError('El proxy no terminó de conectar.')
+            return
+        if args.action == 'write-mega':
+            if args.destination is None:
+                raise ValueError('Falta el destino de configuración.')
+            email, password = read_pair(max_bytes=2048)
+            write_mega_configuration(args.destination, args.mega_home, args.mega_remote_dir, email, password)
+            print('Cuenta MEGA guardada en la configuración privada del bot.', flush=True)
             return
         token, chat = read_pair()
         if args.action == 'validate':

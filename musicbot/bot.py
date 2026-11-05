@@ -27,6 +27,7 @@ from .chat_history import ChatHistory
 from .telegram_bot import HistoryBot
 from .panels import MenuPanels
 from .message_lifecycle import observe_message, start_lifecycle, stop_lifecycle
+from .backup_ui import BackupController, backups_command, backup_attachment
 from urllib.parse import urlsplit
 
 LOG = logging.getLogger('musicbot')
@@ -73,6 +74,7 @@ class Service:
         self.last_delivery_metrics = {}
         self.sessions = PlaybackSessions(store)
         self.playlist_delivery = PlaylistDelivery(store, provider, self.sessions)
+        self.backups = BackupController(self)
 
     async def search(self, query):
         key = ' '.join(query.casefold().split())
@@ -214,6 +216,9 @@ async def allowed(update, context):
         await update.effective_message.reply_text('Este bot está en pruebas privadas.')
     if ok:
         message = update.effective_message
+        text = getattr(message, 'text', None)
+        if not update.callback_query and isinstance(text, str) and text.startswith('/'):
+            context.user_data.pop('awaiting_backup_import', None)
         if isinstance(getattr(message, 'message_id', None), int):
             # Both incoming text and previously untracked bot menus are known
             # only after Telegram supplies their actual message object.
@@ -256,10 +261,16 @@ async def save_playlist(update, context, name):
 async def cancel(update, context):
     if not await allowed(update, context): return
     context.user_data.pop('awaiting_playlist', None)
+    context.user_data.pop('awaiting_backup_import', None)
     await render(update, context, 'Listo. Podés seguir buscando canciones.')
 
 async def search(update, context):
     if not await allowed(update, context): return
+    if context.user_data.get('awaiting_backup_import'):
+        if not update.effective_message.text.startswith('/'):
+            await svc(context).backups.import_text(update, context)
+            return
+        context.user_data.pop('awaiting_backup_import', None)
     if context.user_data.get('awaiting_playlist') and not update.effective_message.text.startswith('/'):
         await save_playlist(update, context, update.effective_message.text.strip())
         return
@@ -331,11 +342,13 @@ async def render(update, context, text, markup=None, **kwargs):
 async def main_menu(update, context, *, force_bottom=False, already_allowed=False, notice=None):
     if not already_allowed and not await allowed(update, context): return
     context.user_data.pop('awaiting_playlist', None)
+    context.user_data.pop('awaiting_backup_import', None)
     rows = [[Button('🔎 Buscar canción', callback_data='searchprompt', style='primary')],
             [Button('➕ Crear playlists', callback_data='create', style='success')],
             [Button('🗑 Eliminar playlists', callback_data='deleteplaylists', style='danger')],
             [Button('▶ Reproducir playlists', callback_data='playmenus', style='primary')],
             [Button('⭐ Favoritos', callback_data='list:f:0')],
+            [Button('☁️ Backups', callback_data='backup:menu', style='primary')],
             [Button('🙈 Ocultar menú', callback_data='hide')],
             [Button('🧹 Borrar chat', callback_data='clean', style='danger')]]
     s=svc(context)
@@ -406,10 +419,13 @@ async def callback(update, context):
     parts = (q.data or '').split(':')
     # Existing result buttons also start delivery without a confirmation card.
     action = 'get' if parts[0] == 'pick' else parts[0]
+    if action != 'backup':
+        context.user_data.pop('awaiting_backup_import', None)
     if action in {'menu','hide','searchprompt','results','playmenus','list','playlists','pick','get','group','next','add','put','clean','repairask','repair'}:
         context.user_data.pop('awaiting_playlist', None)
     try:
-        if action == 'menu': await main_menu(update, context)
+        if action == 'backup': await s.backups.handle_callback(update, context, parts[1] if len(parts) > 1 else 'menu')
+        elif action == 'menu': await main_menu(update, context)
         elif action == 'hide': await hide_menu(update, context)
         elif action == 'deleteplaylists': await delete_playlists(update,context)
         elif action == 'finish': await clean_chat(update,context)
@@ -642,7 +658,7 @@ async def on_error(update, context):
         except TelegramError: pass
 
 async def post_init(app):
-    await app.bot.set_my_commands([BotCommand('menu','Mostrar menú'), BotCommand('detener','Cerrar playlist y limpiar el chat'), BotCommand('ocultarmenu','Ocultar menú'), BotCommand('limpiarchat','Borrar mensajes conservando música'), BotCommand('clearchat','Limpiar mensajes del chat'), BotCommand('limpiar','Limpiar chat conservando canciones'), BotCommand('buscar','Buscar canciones'), BotCommand('favorites','Mis favoritos'), BotCommand('playlists','Mis playlists'), BotCommand('crearplaylist','Crear una playlist'), BotCommand('cancelar','Cancelar creación de playlist'), BotCommand('help','Ayuda')])
+    await app.bot.set_my_commands([BotCommand('menu','Mostrar menú'), BotCommand('detener','Cerrar playlist y limpiar el chat'), BotCommand('ocultarmenu','Ocultar menú'), BotCommand('limpiarchat','Borrar mensajes conservando música'), BotCommand('clearchat','Limpiar mensajes del chat'), BotCommand('limpiar','Limpiar chat conservando canciones'), BotCommand('buscar','Buscar canciones'), BotCommand('favorites','Mis favoritos'), BotCommand('playlists','Mis playlists'), BotCommand('crearplaylist','Crear una playlist'), BotCommand('cancelar','Cancelar creación de playlist'), BotCommand('help','Ayuda'), BotCommand('backups','Exportar e importar playlists')])
     await start_lifecycle(app)
     LOG.info('Bot iniciado y comandos registrados')
 
@@ -673,7 +689,7 @@ def test_api_options():
 
 def main():
     base = Path(__file__).resolve().parent.parent
-    load_dotenv(base / '.env')
+    load_dotenv(base / '.env', interpolate=False)
     token = os.environ.get('BOT_TOKEN','')
     ids = {int(x.strip()) for x in os.environ.get('ALLOWED_USER_IDS','').split(',') if x.strip()}
     if not token or not ids: raise SystemExit('Configurá BOT_TOKEN y ALLOWED_USER_IDS en .env')
@@ -694,8 +710,12 @@ def main():
     for commands, handler in [(['start'],start), (['help'],help_command), (['menu'],main_menu), (['ocultarmenu'],hide_menu), (['buscar'],search), (['favorites','favoritos'],favorites), (['playlists'],playlists), (['crearplaylist'],create_playlist), (['cancelar'],cancel), (['limpiar','limpiarchat','clearchat','detener','cerrarplaylist','stop'],clean_chat)]:
         app.add_handler(CommandHandler(commands, handler))
     app.add_handler(CallbackQueryHandler(callback))
+    app.add_handler(CommandHandler('backups', backups_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, search))
+    app.add_handler(MessageHandler(filters.ALL & ~filters.TEXT, backup_attachment))
     app.add_error_handler(on_error)
     app.run_polling(allowed_updates=['message','callback_query'], drop_pending_updates=False)
+    if app.bot_data.get('restart_after_backup_import'):
+        raise SystemExit(75)
 
 if __name__ == '__main__': main()
