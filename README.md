@@ -37,7 +37,7 @@ Como las búsquedas se realizan en YouTube, no dependés de un catálogo propio 
 
 Aunque está pensado para música, también permite obtener el audio de otros videos públicos. En ese caso, recibís el audio, no el video completo.
 
-## Migracion de Playlists
+## Migracion de Playlists a otro servidor
 
 Si tenés playlists con muchas canciones y querés migrarlas a otro bot o servidor, agregué la opción **Backups** al menú principal. Esta función permite exportar e importar tus playlists y favoritos desde la nube, conservando el orden de las canciones.
 
