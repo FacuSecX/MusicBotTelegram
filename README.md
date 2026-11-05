@@ -37,6 +37,21 @@ Como las búsquedas se realizan en YouTube, no dependés de un catálogo propio 
 
 Aunque está pensado para música, también permite obtener el audio de otros videos públicos. En ese caso, recibís el audio, no el video completo.
 
+## Migracion de Playlists
+
+Si tenés playlists con muchas canciones y querés migrarlas a otro bot o servidor, agregué la opción **Backups** al menú principal. Esta función permite exportar e importar tus playlists y favoritos desde la nube, conservando el orden de las canciones.
+
+El proveedor de almacenamiento es **MEGA**. Para usarlo, creá una cuenta en [mega.nz](https://mega.nz/). Durante la instalación, el instalador `.SH` te pedirá el correo y la contraseña de esa cuenta y los guardará en el archivo `.env` privado del bot.
+
+Para crear un respaldo, entrá en **Backups → Exportar Backup**. El bot generará el archivo y lo subirá a MEGA. Desde **Descargar Backup** podrás acceder al respaldo y copiar su enlace.
+
+Cuando tengas el bot instalado en el nuevo servidor, entrá en **Backups → Importar Backup** y pegá el enlace completo de MEGA. El bot reemplazará las playlists y los favoritos actuales por los del respaldo y reiniciará su servicio para cargar los cambios.
+
+Así podés trasladar tu biblioteca sin volver a armar todas las listas canción por canción. El respaldo guarda tus playlists, favoritos y referencias a las canciones.
+ 
+
+
+
 ## Instalación y uso
 
 El instalador está preparado para un **VPS con Debian 12 o Debian 13**. Configura las dependencias y deja el bot funcionando como un servicio que se inicia automáticamente con el servidor.
