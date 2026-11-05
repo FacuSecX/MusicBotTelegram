@@ -17,7 +17,7 @@ Con este simple bot pueden reproducir la música en segundo plano y con el telé
 <br>
 
 <p align="center">
-<img alt="Telegram Music Bo" src="http://imgfz.com/i/VK1tmS2.png" title="Telegram Music Bot">
+<img alt="Telegram Music Bo" src="http://imgfz.com/i/JM1ZND6.png" title="Telegram Music Bot">
 </p>
 <br>
 
